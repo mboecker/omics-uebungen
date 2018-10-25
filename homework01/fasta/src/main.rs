@@ -93,85 +93,85 @@ fn main() {
     //     .into_par_iter()
     //     .map(|&p| {
 
-            let p = 5;
+    let p = 5;
 
-            // Contains the count for every q-mer
-            let mut hm: HashMap<[u8; Q], usize> = HashMap::new();
+    // Contains the count for every q-mer
+    let mut hm: HashMap<[u8; Q], usize> = HashMap::new();
 
-            let mut rng = rand::thread_rng();
+    let mut rng = rand::thread_rng();
 
-            // Do C times...
-            for i in (0..C).into_iter() {
-                eprintln!("p = {}, i = {}/{}", p, i + 1, C);
+    // Do C times...
+    for i in (0..C).into_iter() {
+        eprintln!("p = {}, i = {}/{}", p, i + 1, C);
 
-                // Iterate over seq and flip every base with p = 0.01
-                // This copies the sequence.
-                let copy: Vec<u8> = bytes_seq
-                    .iter()
-                    .map(|b| if rng.gen_bool(0.01) {
-                        invert(*b, &mut rng)
-                    } else {
-                        *b
-                    })
-                    .collect();
+        // Iterate over seq and flip every base with p = 0.01
+        // This copies the sequence.
+        let copy: Vec<u8> = bytes_seq
+            .iter()
+            .map(|b| if rng.gen_bool(0.01) {
+                invert(*b, &mut rng)
+            } else {
+                *b
+            })
+            .collect();
 
-                // Slide window over our copy
-                for window in copy.windows(Q).into_iter() {
+        // Slide window over our copy
+        for window in copy.windows(Q).into_iter() {
 
-                    //let selected = true;  // no sampling
-                    //let selected = rng.gen_bool(0.05); // sample 5% of q-mers
-                    //let selected = rng.gen_bool(0.10);  // sample 10% of q-mers
-                    //let selected = rng.gen_bool(0.12);  // sample 12% of q-mers
-                    let selected = rng.gen_bool(p as f64 / 100f64);
+            //let selected = true;  // no sampling
+            //let selected = rng.gen_bool(0.05); // sample 5% of q-mers
+            //let selected = rng.gen_bool(0.10);  // sample 10% of q-mers
+            //let selected = rng.gen_bool(0.12);  // sample 12% of q-mers
+            let selected = rng.gen_bool(p as f64 / 100f64);
 
-                    if selected {
-                        // Increase counter or init counter with 1
-                        if hm.contains_key(&window[..]) {
-                            let x = hm.get_mut(&window[..]).unwrap();
-                            *x = *x + 1;
-                        } else {
-                            hm.insert(convert_to_static_arr(window), 1);
-                        }
-                    }
-                }
-            }
-
-            // Correct genomes, which were also recorded into hm
-            let genome_qgrams_in_hm = correct_qgrams
-                .iter()
-                .map(|x| hm.contains_key(x))
-                .map(|b| b as usize)
-                .fold(0, |x, y| x + y);
-
-            // Correct genomes, which were never recorded into hm
-            let missing_qgrams = correct_qgrams
-                .iter()
-                .map(|x| !hm.contains_key(x))
-                .map(|b| b as usize)
-                .fold(0, |x, y| x + y);
-
-            // Incorrect genomes, which were nevertheless recorded into hm
-            let errornous_qgrams_in_hm = hm.len() - genome_qgrams_in_hm;
-
-            // New sorted Map, which contains the histogram
-            let mut inverse = BTreeMap::new();
-
-            for (_key, value) in &hm {
-                // Increase count for value or init it with 1
-                if inverse.contains_key(&value) {
-                    let x = inverse.get_mut(&value).unwrap();
+            if selected {
+                // Increase counter or init counter with 1
+                if hm.contains_key(&window[..]) {
+                    let x = hm.get_mut(&window[..]).unwrap();
                     *x = *x + 1;
                 } else {
-                    inverse.insert(value, 1);
+                    hm.insert(convert_to_static_arr(window), 1);
                 }
             }
+        }
+    }
 
-            let fnr = 100f64 * missing_qgrams as f64 / correct_qgrams.len() as f64;
-            let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
+    // Correct genomes, which were also recorded into hm
+    let genome_qgrams_in_hm = correct_qgrams
+        .iter()
+        .map(|x| hm.contains_key(x))
+        .map(|b| b as usize)
+        .fold(0, |x, y| x + y);
 
-        //     (p, (fnr, fpr))
-        // })
-        // .collect();
+    // Correct genomes, which were never recorded into hm
+    let missing_qgrams = correct_qgrams
+        .iter()
+        .map(|x| !hm.contains_key(x))
+        .map(|b| b as usize)
+        .fold(0, |x, y| x + y);
+
+    // Incorrect genomes, which were nevertheless recorded into hm
+    let errornous_qgrams_in_hm = hm.len() - genome_qgrams_in_hm;
+
+    // New sorted Map, which contains the histogram
+    let mut inverse = BTreeMap::new();
+
+    for (_key, value) in &hm {
+        // Increase count for value or init it with 1
+        if inverse.contains_key(&value) {
+            let x = inverse.get_mut(&value).unwrap();
+            *x = *x + 1;
+        } else {
+            inverse.insert(value, 1);
+        }
+    }
+
+    let fnr = 100f64 * missing_qgrams as f64 / correct_qgrams.len() as f64;
+    let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
+
+    //     (p, (fnr, fpr))
+    // })
+    // .collect();
 
     // for (c, v) in amounts.iter().enumerate().filter(|(_, &v)| v > 0) {
     //     println!("{}: {}", char::from(c as u8), v);
