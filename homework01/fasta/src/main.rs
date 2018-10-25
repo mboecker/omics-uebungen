@@ -2,6 +2,17 @@ use rand;
 use rand::Rng;
 use rayon::prelude::*;
 
+// Length of q-mer
+const Q: usize = 17;
+
+fn convert_to_static_arr(b: &[u8]) -> [u8; Q] {
+    let mut a = [0; Q];
+    for i in 0..Q {
+        a[i] = b[i];
+    }
+    a
+}
+
 fn reverse_kmer(kmer: impl DoubleEndedIterator<Item = char>) -> impl Iterator<Item = char> {
     kmer.rev().map(reverse)
 }
@@ -69,108 +80,98 @@ fn main() {
         x
     });
 
-    // Length of q-mer
-    const Q: usize = 17;
-
     // Coverage
     const C: usize = 30;
 
     let bytes_seq: &[u8] = seq.as_ref();
 
     // Record the correct q-grams for later use
-    let correct_qgrams: Vec<String> = bytes_seq
-        .windows(Q)
-        .map(|window| String::from_utf8_lossy(window).into())
-        .collect();
+    let correct_qgrams: Vec<[u8; Q]> = bytes_seq.windows(Q).map(convert_to_static_arr).collect();
 
     // Try different p values.
-    // let fr: BTreeMap<_, _> = [5,10,100]
+    // let fr: BTreeMap<_, _> = [5, 10, 100usize]
     //     .into_par_iter()
-    //     .map(|p| {
+    //     .map(|&p| {
 
-    let p = 100;
+            let p = 5;
 
-    // Contains the count for every q-mer
-    let mut hm: HashMap<String, usize> = HashMap::new();
+            // Contains the count for every q-mer
+            let mut hm: HashMap<[u8; Q], usize> = HashMap::new();
 
-    let mut rng = rand::thread_rng();
+            let mut rng = rand::thread_rng();
 
-    // Do C times...
-    for i in (0..C).into_iter() {
-        eprintln!("p = {}, i = {}/{}", p, i + 1, C);
+            // Do C times...
+            for i in (0..C).into_iter() {
+                eprintln!("p = {}, i = {}/{}", p, i + 1, C);
 
-        // Iterate over seq and flip every base with p = 0.01
-        // This copies the sequence.
-        let copy: Vec<u8> = bytes_seq
-            .iter()
-            .map(|b| if rng.gen_bool(0.01) {
-                invert(*b, &mut rng)
-            } else {
-                *b
-            })
-            .collect();
+                // Iterate over seq and flip every base with p = 0.01
+                // This copies the sequence.
+                let copy: Vec<u8> = bytes_seq
+                    .iter()
+                    .map(|b| if rng.gen_bool(0.01) {
+                        invert(*b, &mut rng)
+                    } else {
+                        *b
+                    })
+                    .collect();
 
-        // Slide window over our copy
-        for window in copy.windows(Q).into_iter() {
+                // Slide window over our copy
+                for window in copy.windows(Q).into_iter() {
 
-            // Construct String from the q-mer
-            let qmer = String::from_utf8_lossy(window);
-            let reversed_qmer: String = reverse_kmer(qmer.chars()).collect();
+                    //let selected = true;  // no sampling
+                    //let selected = rng.gen_bool(0.05); // sample 5% of q-mers
+                    //let selected = rng.gen_bool(0.10);  // sample 10% of q-mers
+                    //let selected = rng.gen_bool(0.12);  // sample 12% of q-mers
+                    let selected = rng.gen_bool(p as f64 / 100f64);
 
-            //let selected = true;  // no sampling
-            //let selected = rng.gen_bool(0.05); // sample 5% of q-mers
-            //let selected = rng.gen_bool(0.10);  // sample 10% of q-mers
-            //let selected = rng.gen_bool(0.12);  // sample 12% of q-mers
-            let selected = rng.gen_bool(p as f64 / 100f64);
-
-            if selected {
-                // Increase counter or init counter with 1
-                if hm.contains_key(qmer.as_ref()) {
-                    let x = hm.get_mut(qmer.as_ref()).unwrap();
-                    *x = *x + 1;
-                } else {
-                    hm.insert(qmer.into(), 1);
+                    if selected {
+                        // Increase counter or init counter with 1
+                        if hm.contains_key(&window[..]) {
+                            let x = hm.get_mut(&window[..]).unwrap();
+                            *x = *x + 1;
+                        } else {
+                            hm.insert(convert_to_static_arr(window), 1);
+                        }
+                    }
                 }
             }
-        }
-    }
 
-    // Correct genomes, which were also recorded into hm
-    let genome_qgrams_in_hm = correct_qgrams
-        .iter()
-        .map(|x| hm.contains_key(x))
-        .map(|b| b as usize)
-        .fold(0, |x, y| x + y);
+            // Correct genomes, which were also recorded into hm
+            let genome_qgrams_in_hm = correct_qgrams
+                .iter()
+                .map(|x| hm.contains_key(x))
+                .map(|b| b as usize)
+                .fold(0, |x, y| x + y);
 
-    // Correct genomes, which were never recorded into hm
-    let missing_qgrams = correct_qgrams
-        .iter()
-        .map(|x| !hm.contains_key(x))
-        .map(|b| b as usize)
-        .fold(0, |x, y| x + y);
+            // Correct genomes, which were never recorded into hm
+            let missing_qgrams = correct_qgrams
+                .iter()
+                .map(|x| !hm.contains_key(x))
+                .map(|b| b as usize)
+                .fold(0, |x, y| x + y);
 
-    // Incorrect genomes, which were nevertheless recorded into hm
-    let errornous_qgrams_in_hm = hm.len() - genome_qgrams_in_hm;
+            // Incorrect genomes, which were nevertheless recorded into hm
+            let errornous_qgrams_in_hm = hm.len() - genome_qgrams_in_hm;
 
-    // New sorted Map, which contains the histogram
-    let mut inverse = BTreeMap::new();
+            // New sorted Map, which contains the histogram
+            let mut inverse = BTreeMap::new();
 
-    for (_key, value) in &hm {
-        // Increase count for value or init it with 1
-        if inverse.contains_key(&value) {
-            let x = inverse.get_mut(&value).unwrap();
-            *x = *x + 1;
-        } else {
-            inverse.insert(value, 1);
-        }
-    }
+            for (_key, value) in &hm {
+                // Increase count for value or init it with 1
+                if inverse.contains_key(&value) {
+                    let x = inverse.get_mut(&value).unwrap();
+                    *x = *x + 1;
+                } else {
+                    inverse.insert(value, 1);
+                }
+            }
 
-    let fnr = 100f64 * missing_qgrams as f64 / correct_qgrams.len() as f64;
-    let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
+            let fnr = 100f64 * missing_qgrams as f64 / correct_qgrams.len() as f64;
+            let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
 
-    //(p, (fnr, fpr))
-    // })
-    // .collect();
+        //     (p, (fnr, fpr))
+        // })
+        // .collect();
 
     // for (c, v) in amounts.iter().enumerate().filter(|(_, &v)| v > 0) {
     //     println!("{}: {}", char::from(c as u8), v);
