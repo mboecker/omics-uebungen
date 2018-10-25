@@ -2,7 +2,7 @@ use rand;
 use rand::Rng;
 use rayon::prelude::*;
 
-fn reverse_kmer(kmer: impl DoubleEndedIterator<Item=char>) -> impl Iterator<Item=char> {
+fn reverse_kmer(kmer: impl DoubleEndedIterator<Item = char>) -> impl Iterator<Item = char> {
     kmer.rev().map(reverse)
 }
 
@@ -103,12 +103,10 @@ fn main() {
         // This copies the sequence.
         let copy: Vec<u8> = bytes_seq
             .iter()
-            .map(|b| {
-                if rng.gen_bool(0.01) {
-                    invert(*b, &mut rng)
-                } else {
-                    *b
-                }
+            .map(|b| if rng.gen_bool(0.01) {
+                invert(*b, &mut rng)
+            } else {
+                *b
             })
             .collect();
 
@@ -170,9 +168,9 @@ fn main() {
     let fnr = 100f64 * missing_qgrams as f64 / correct_qgrams.len() as f64;
     let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
 
-            //(p, (fnr, fpr))
-        // })
-        // .collect();
+    //(p, (fnr, fpr))
+    // })
+    // .collect();
 
     // for (c, v) in amounts.iter().enumerate().filter(|(_, &v)| v > 0) {
     //     println!("{}: {}", char::from(c as u8), v);
