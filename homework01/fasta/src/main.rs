@@ -2,6 +2,20 @@ use rand;
 use rand::Rng;
 use rayon::prelude::*;
 
+fn reverse_kmer(kmer: impl DoubleEndedIterator<Item=char>) -> impl Iterator<Item=char> {
+    kmer.rev().map(reverse)
+}
+
+fn reverse(b: char) -> char {
+    match b {
+        'A' => 'T',
+        'C' => 'G',
+        'G' => 'C',
+        'T' => 'A',
+        _ => unreachable!(),
+    }
+}
+
 /// Return an array of other bases thatn the given one
 fn invert_values(b: u8) -> [char; 3] {
     match b.into() {
@@ -39,9 +53,9 @@ fn main() {
         let stdin = stdin.lock();
         let s = stdin
             .lines()
-            .skip(1)                                // Skip first line with header
+            .skip(1) // Skip first line with header
             .map(Result::unwrap)
-            .take_while(|x| !x.starts_with('>'))    // Read sequence until next header
+            .take_while(|x| !x.starts_with('>')) // Read sequence until next header
             .fold(String::new(), |mut x, y| {
                 x.push_str(&y);
                 x
@@ -70,7 +84,7 @@ fn main() {
         .collect();
 
     // Try different p values.
-    let fr: BTreeMap<_, _> = (100..101)
+    let fr: BTreeMap<_, _> = (1..101)
         .into_par_iter()
         .map(|p| {
             // Contains the count for every q-mer
@@ -92,12 +106,15 @@ fn main() {
                         } else {
                             *b
                         }
-                    }).collect();
+                    })
+                    .collect();
 
                 // Slide window over our copy
                 for window in copy.windows(Q).into_iter() {
+
                     // Construct String from the q-mer
                     let qmer = String::from_utf8_lossy(window);
+                    let reversed_qmer: String = reverse_kmer(qmer.chars()).collect();
 
                     //let selected = true;  // no sampling
                     //let selected = rng.gen_bool(0.05); // sample 5% of q-mers
@@ -151,7 +168,8 @@ fn main() {
             let fpr = 100f64 * errornous_qgrams_in_hm as f64 / hm.len() as f64;
 
             (p, (fnr, fpr))
-        }).collect();
+        })
+        .collect();
 
     for (c, v) in amounts.iter().enumerate().filter(|(_, &v)| v > 0) {
         println!("{}: {}", char::from(c as u8), v);

@@ -1,0 +1,8 @@
+[package]
+name = "fasta_rosa"
+version = "0.1.0"
+authors = ["Marvin Böcker <marvin.boecker@tu-dortmund.de>"]
+edition = "2018"
+
+[dependencies]
+rand = "0.5.5"
